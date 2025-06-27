@@ -48,8 +48,8 @@ contract Niqox is ERC20, Ownable{
 
         event ClaimedToken(address user, uint256 amount);
         event TimelineChanged(address user, uint256 newTime);
-        event SellTokenForBnb(address user, uint256 tokenAmount, uint256 recievedBnb);
-        event SellTokenForToken(address user, uint256 tokenAmount, uint256 recievedUsdt);
+        event TokenSold(address user, address payoutToken, uint256 tokenAmount, uint256 payoutAmount);
+
 
 
             constructor (address _owner, address _admin, uint256 _initialSupply)  ERC20("Niqox", "NQ") Ownable (_owner) {
@@ -87,6 +87,7 @@ contract Niqox is ERC20, Ownable{
 
         uint256 orderIndex = userOrders[msg.sender]++;
         vesting[msg.sender][orderIndex] = VestingInfo(amount, block.timestamp, 0);
+        soldTokens += amount;
 
         
         emit BuyToken(msg.sender, _tokenPayment, amount, tokenCost);
@@ -142,11 +143,11 @@ contract Niqox is ERC20, Ownable{
                     }
 
 
-            function getLatestBNBPrice() public view returns (uint256) {
-                (, int256 price,,,) = priceFeed.latestRoundData();
-                require(price > 0, "Invalid price feed");
-                return uint256(price); // Price with 8 decimals
-}
+//             function getLatestBNBPrice() public view returns (uint256) {
+//                 (, int256 price,,,) = priceFeed.latestRoundData();
+//                 require(price > 0, "Invalid price feed");
+//                 return uint256(price); // Price with 8 decimals
+// }
 
             
              function calculateClaimable(address user, uint256 _ordernumber) external view returns (uint256) {
@@ -174,47 +175,51 @@ contract Niqox is ERC20, Ownable{
     return infos;
 }
 
+function sellToken(address payoutToken, uint256 amount, uint256 _orderNumber) external {
+    require(amount > 0, "Amount must be greater than 0");
+    require(amount <= vesting[msg.sender][_orderNumber].claimedAmount, "Not enough unlocked tokens to sell");
+
+    if (payoutToken == address(0)) {
+    // BNB payout
+    uint256 bnbAmount = amount/1e3;
+    require(address(this).balance >= bnbAmount, "Not enough BNB balance");
+
+    _transfer(msg.sender, address(this), amount);
+    payable(msg.sender).transfer(bnbAmount);
+    vesting[msg.sender][_orderNumber].claimedAmount -= amount;
+
+    emit TokenSold(msg.sender, payoutToken, amount, bnbAmount);
+}
+
+
+
+    else {
+        // Token payout
+        require(address(priceFeeds[payoutToken]) != address(0), "Token not accepted");
+        require(address(tokenContracts[payoutToken]) != address(0), "Token not registered");
+
+        uint256 payoutTokenPrice = getLatestTokenPrize(payoutToken);
+        require(payoutTokenPrice > 0, "Invalid token price");
+
+        uint256 tokenValueInUsd = amount * tokenPrizeUsdt / 1e18;
+        uint256 payoutAmount = tokenValueInUsd * 1e8 / payoutTokenPrice;
+
+        require(tokenContracts[payoutToken].balanceOf(address(this)) >= payoutAmount, "Not enough payout token balance");
+
+        _transfer(msg.sender, address(this), amount);
+
+        tokenContracts[payoutToken].transfer(msg.sender, payoutAmount);
+        vesting[msg.sender][_orderNumber].claimedAmount -= amount;
+
+   
+        emit TokenSold(msg.sender, payoutToken, amount, payoutAmount);
+
+    }
+}
 
 
 
    
-
-    
-
-    function sellTokenForBnb (uint256 amount, uint256 _orderNumber) external {
-
-        require (amount > 0 , "amount must greater than 0");
-        require (amount >= vesting[msg.sender][_orderNumber].claimedAmount , "Not enough unlocked token to sell");
-          require (amount * tokenPrizeUsdt / 1e10 / getLatestBNBPrice() <= address(this).balance , "Not enough BNB balnce in contract");
-        transferFrom(msg.sender, address(this), amount);
-        uint256 returnBnbToUser = amount * tokenPrizeUsdt / 1e10 / getLatestBNBPrice();
-        payable(msg.sender).transfer(returnBnbToUser);
-        vesting[msg.sender][_orderNumber].claimedAmount -= amount;
-        emit SellTokenForBnb(msg.sender,amount, returnBnbToUser);
-
-    }
-    
-    function sellTokenForToken(address payoutToken, uint256 amount, uint256 _orderNumber) external {
-        require(amount > 0, "Amount must be greater than 0");
-        require(amount <= vesting[msg.sender][_orderNumber].claimedAmount, "Not enough unlocked tokens to sell");
-        require(address(priceFeeds[payoutToken]) != address(0), "Token not accepted");
-        require(address(tokenContracts[payoutToken]) != address(0), "Token not registered");
-
-        uint256 payoutTokenPrice = getLatestTokenPrize(payoutToken); // Price of payout token in USD (8 decimals)
-        require(payoutTokenPrice > 0, "Invalid token price");
-
-        uint256 tokenValueInUsd = amount * tokenPrizeUsdt / 1e18; // Total Niqox token value in USD (18 decimals scaled)
-        uint256 payoutTokenAmount = tokenValueInUsd * 1e8 / payoutTokenPrice; // Amount of payout token to send
-
-        require(tokenContracts[payoutToken].balanceOf(address(this)) >= payoutTokenAmount, "Not enough payout token in contract");
-
-        transferFrom(msg.sender, address(this), amount);
-        tokenContracts[payoutToken].transfer(msg.sender, payoutTokenAmount);
-
-        vesting[msg.sender][_orderNumber].claimedAmount -= amount;
-
-        emit SellTokenForToken(msg.sender, amount, payoutTokenAmount);
-}
 
 
      function setPrizeFeed(address _tokenaddress, address _pricefeedAddress) public onlyAdmin {
@@ -227,6 +232,7 @@ contract Niqox is ERC20, Ownable{
                 require(price > 0, "Invalid price feed");
                 return uint256(price);
             }
+
 
 
     function calculateCost(uint256 amount, address _tokenPayment) public view returns (uint256) {
@@ -279,5 +285,14 @@ contract Niqox is ERC20, Ownable{
 
                 return finlePrize;
 }
+
+
+
+
+
+        // Add this function to your Niqox contract
+
+
+receive() external payable {}
 
 }
