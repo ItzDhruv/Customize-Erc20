@@ -1,13 +1,13 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 
-describe("NIQOX TOKEN", function () {
+describe("Dtoken TOKEN", function () {
   let owner, admin, newAdmin, user, token;
 
   beforeEach(async function () {
     [owner, admin, newAdmin, user] = await ethers.getSigners();
 
-    const Token = await ethers.getContractFactory("Niqox");
+    const Token = await ethers.getContractFactory("customizetoken");
     token = await Token.deploy(owner.address, admin.address, ethers.parseUnits("10000000000", 18));
     await token.waitForDeployment();
   });
@@ -176,7 +176,7 @@ describe("NIQOX TOKEN", function () {
   // Claim tokens
   await token.connect(user).claimTokens(0);
 
-  // Approve Niqox contract to spend user's NQ tokens
+  // Approve DToken contract to spend user's NQ tokens
   await token.connect(user).approve(await token.getAddress(), amount);
 
   // Record user's BNB balance before selling
@@ -196,7 +196,7 @@ describe("NIQOX TOKEN", function () {
 
 
   it("User can sell claimed tokens for USDT payout", async function () {
-  const amount = ethers.parseUnits("1000", 18); // 1000 Niqox tokens
+  const amount = ethers.parseUnits("1000", 18); // 1000 DToken tokens
   const usdtAmount = ethers.parseUnits("10000", 18); // Mock USDT liquidity
 
   // Deploy Mock USDT token
@@ -209,13 +209,13 @@ describe("NIQOX TOKEN", function () {
   const priceFeed = await MockFeed.deploy(ethers.parseUnits("1", 8)); // Price: $1 with 8 decimals
   await priceFeed.waitForDeployment();
 
-  // Register USDT & price feed in Niqox
+  // Register USDT & price feed in DToken
   await token.connect(admin).setPrizeFeed(await usdt.getAddress(), await priceFeed.getAddress());
 
-  // Provide USDT liquidity to Niqox contract
+  // Provide USDT liquidity to DToken contract
   await usdt.transfer(await token.getAddress(), usdtAmount);
 
-  // User buys Niqox tokens with BNB
+  // User buys DToken tokens with BNB
   const requiredEth = amount / 1000n; // 1 BNB = 1000 tokens
   await token.connect(user).buyToken(amount, ethers.ZeroAddress, { value: requiredEth });
 
@@ -226,7 +226,7 @@ describe("NIQOX TOKEN", function () {
   // Claim tokens
   await token.connect(user).claimTokens(0);
 
-  // Approve Niqox contract to spend user's NQ tokens
+  // Approve DToken contract to spend user's NQ tokens
   await token.connect(user).approve(await token.getAddress(), amount);
 
   // Record user's USDT balance before selling

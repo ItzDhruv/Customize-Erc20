@@ -11,7 +11,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
 
 
-contract Niqox is ERC20, Ownable{
+contract customizetoken is ERC20, Ownable{
 
         address public admin;
         uint256 public tokenPrizeUsdt = 100000000000000000; // 0.1 dollar 
@@ -52,7 +52,7 @@ contract Niqox is ERC20, Ownable{
 
 
 
-            constructor (address _owner, address _admin, uint256 _initialSupply)  ERC20("Niqox", "NQ") Ownable (_owner) {
+            constructor (address _owner, address _admin, uint256 _initialSupply)  ERC20("Dtoken", "DT") Ownable (_owner) {
                 _mint(address(this), _initialSupply);
                 admin = _admin;
                 soldTokens = 0;
