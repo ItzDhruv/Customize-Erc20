@@ -1,5 +1,3 @@
-
-
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
@@ -21,7 +19,7 @@ contract customizetoken is ERC20, Ownable{
         uint256 public nextPriceIncreaseThreshold;
 
          // fatch bnb prize from chainlink data feed 
-     AggregatorV3Interface public priceFeed; 
+     AggregatorV3Interface public priceFeed;
      mapping(address => AggregatorV3Interface) priceFeeds;
    
     
@@ -62,12 +60,22 @@ contract customizetoken is ERC20, Ownable{
     
 
     
+    function setBnbPriceFeed(address _priceFeedAddress) public onlyAdmin {
+        priceFeed = AggregatorV3Interface(_priceFeedAddress);
+    }
+    
     function buyToken(uint256 amount, address _tokenPayment) external payable {
             uint256 tokenCost;
     
     if (_tokenPayment == address(0)) {
         // BNB payment 
-        tokenCost = amount / 1e3;
+         uint256 bnbPriceUsd = getLatestBNBPrice(); // e.g., 60000000000 for $600
+            
+         
+            uint256 costUsd = (amount * tokenPrizeUsdt) / 1e18; // 0.1 USD per token
+            
+            
+             tokenCost = (costUsd * 1e8) / bnbPriceUsd;
         require(msg.value >= tokenCost, "Insufficient BNB sent");
 
         uint256 orderIndex = userOrders[msg.sender]++;
@@ -129,10 +137,22 @@ contract customizetoken is ERC20, Ownable{
                 emit TimelineChanged(user, newStartTime);
             }
 
-            function withdrawAll(address tokenAddress) external onlyOwner{                  // bnb and usdt pacha leva
-                payable(msg.sender).transfer(address(this).balance);
-                tokenContracts[tokenAddress].transfer(msg.sender,  tokenContracts[tokenAddress].balanceOf(address(this)));
-            }      
+          function withdrawAll(address tokenAddress) external onlyOwner {
+    // Withdraw BNB
+    if (address(this).balance > 0) {
+        payable(msg.sender).transfer(address(this).balance);
+    }
+
+    // Withdraw ERC20 tokens only if tokenAddress is provided
+    if (tokenAddress != address(0)) {
+        require(address(tokenContracts[tokenAddress]) != address(0), "Token not registered");
+        uint256 tokenBalance = tokenContracts[tokenAddress].balanceOf(address(this));
+        if (tokenBalance > 0) {
+            tokenContracts[tokenAddress].transfer(msg.sender, tokenBalance);
+        }
+    }
+}
+
 
             function changeOwner (address _newOwner) external onlyOwner{
                 transferOwnership(_newOwner);
@@ -181,15 +201,19 @@ function sellToken(address payoutToken, uint256 amount, uint256 _orderNumber) ex
 
     if (payoutToken == address(0)) {
     // BNB payout
-    uint256 bnbAmount = amount/1e3;
-    require(address(this).balance >= bnbAmount, "Not enough BNB balance");
+    uint256 payoutTokenPrice = getLatestBNBPrice();
+    uint256 tokenValueInUsd = amount * tokenPrizeUsdt / 1e18;
+    uint256 payoutAmount = tokenValueInUsd * 1e8 / payoutTokenPrice;
+
+    require(address(this).balance >= payoutAmount, "Not enough BNB balance");
 
     _transfer(msg.sender, address(this), amount);
-    payable(msg.sender).transfer(bnbAmount);
+    payable(msg.sender).transfer(payoutAmount);
     vesting[msg.sender][_orderNumber].claimedAmount -= amount;
 
-    emit TokenSold(msg.sender, payoutToken, amount, bnbAmount);
+    emit TokenSold(msg.sender, payoutToken, amount, payoutAmount);
 }
+
 
 
 
@@ -216,10 +240,6 @@ function sellToken(address payoutToken, uint256 amount, uint256 _orderNumber) ex
 
     }
 }
-
-
-
-   
 
 
      function setPrizeFeed(address _tokenaddress, address _pricefeedAddress) public onlyAdmin {
@@ -287,6 +307,11 @@ function sellToken(address payoutToken, uint256 amount, uint256 _orderNumber) ex
 }
 
 
+  function getLatestBNBPrice() public view returns (uint256) {
+                (, int256 price,,,) = priceFeed.latestRoundData();
+                require(price > 0, "Invalid price feed");
+                return uint256(price); // Price with 8 decimals
+}
 
 
 
