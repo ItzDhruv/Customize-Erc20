@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Buy Token with BNB</title>
+  <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+</head>
+<body>
+
+<h2>Buy Token (Niqox)</h2>
+
+<label for="tokenAmount">Token Amount:</label>
+<input type="number" id="tokenAmount" placeholder="Enter token amount" />
+
+<br><br>
+
+<label for="bnbAmount">BNB Amount:</label>
+<input type="number" id="bnbAmount" placeholder="Enter BNB amount" />
+
+<br><br>
+
+<button onclick="buyToken()">Buy Token</button>
+
+<p id="status"></p>
+
+<script>
+const contractAddress = "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0";
+const contractABI = [
+  {
+    "inputs": [
+      { "internalType": "uint256", "name": "amount", "type": "uint256" },
+      { "internalType": "address", "name": "_tokenPayment", "type": "address" }
+    ],
+    "name": "buyToken",
+    "outputs": [],
+    "stateMutability": "payable",
+    "type": "function"
+  }
+];
+
+async function buyToken() {
+  const status = document.getElementById("status");
+  const tokenAmount = document.getElementById("tokenAmount").value;
+  const bnbAmount = document.getElementById("bnbAmount").value;
+
+  if (!window.ethereum) {
+    alert("Please install MetaMask to use this feature.");
+    return;
+  }
+
+  try {
+    await ethereum.request({ method: 'eth_requestAccounts' });
+
+    const provider = new ethers.providers.Web3Provider(window.ethereum);
+    const signer = provider.getSigner();
+    const contract = new ethers.Contract(contractAddress, contractABI, signer);
+
+    const amount = ethers.utils.parseUnits(tokenAmount, 18); 
+    const value = ethers.utils.parseEther(bnbAmount);
+
+    status.innerText = "Transaction in progress...";
+
+    const tx = await contract.buyToken(amount, ethers.constants.AddressZero, { value });
+    console.log("Transaction hash:", tx.hash);
+
+    await tx.wait();
+    status.innerText = "Transaction confirmed. Token purchase successful!";
+  } catch (err) {
+    console.error(err);
+    status.innerText = "Transaction failed: " + err.message;
+  }
+}
+</script>
+
+</body>
+</html>
